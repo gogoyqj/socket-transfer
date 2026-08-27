@@ -49,7 +49,6 @@ export class MessageHandler {
       case "transfer_produce":
         return this.handleProduce(ws, msg);
       case "transfer_consume":
-        console.log(JSON.stringify(msg));
         return this.handleConsume(ws, msg);
       default:
         return undefined;
@@ -86,7 +85,7 @@ export class MessageHandler {
     msg: { uid: string; token: string; uuid: string; name: string }
   ): HandleResult {
     if (!validateUid(msg.uid) || !validateToken(msg.token)) {
-      this.sendError(ws, TransferErrorCode.AUTH_FAILED);
+      this.sendError(ws, TransferErrorCode.AUTH_FAILED, msg.uuid);
       return { ok: false, code: TransferErrorCode.AUTH_FAILED };
     }
 
@@ -113,7 +112,7 @@ export class MessageHandler {
           try {
             fwd.send(JSON.stringify({
               type: "transfer_break",
-              data: { code: TransferErrorCode.CREDENTIALS_CHANGED },
+              data: { uuid: msg.uuid, code: TransferErrorCode.CREDENTIALS_CHANGED },
             }));
           } catch { /* ignore */ }
           fwd.destroy();
@@ -161,18 +160,18 @@ export class MessageHandler {
     msg: { uid: string; token: string; uuid: string; cuuid: string }
   ): HandleResult {
     if (!validateUid(msg.uid) || !validateToken(msg.token)) {
-      this.sendBreak(ws, TransferErrorCode.SUBSCRIBE_FAILED);
+      this.sendBreak(ws, TransferErrorCode.SUBSCRIBE_FAILED, msg.uuid);
       return { ok: false, code: TransferErrorCode.AUTH_FAILED };
     }
 
     if (!this.store.verifyUser(msg.uid, msg.token)) {
-      this.sendBreak(ws, TransferErrorCode.SUBSCRIBE_FAILED);
+      this.sendBreak(ws, TransferErrorCode.SUBSCRIBE_FAILED, msg.uuid);
       return { ok: false, code: TransferErrorCode.AUTH_FAILED };
     }
 
     const conn = this.store.getConnection(msg.uuid);
     if (!conn) {
-      this.sendBreak(ws, TransferErrorCode.SUBSCRIBE_FAILED);
+      this.sendBreak(ws, TransferErrorCode.SUBSCRIBE_FAILED, msg.uuid);
       return { ok: false, code: TransferErrorCode.SUBSCRIBE_FAILED };
     }
 
@@ -274,17 +273,17 @@ export class MessageHandler {
 
   // ===== Helpers =====
 
-  private sendError(ws: SocketLike, code: TransferErrorCode): void {
+  private sendError(ws: SocketLike, code: TransferErrorCode, uuid?: string): void {
     ws.send(JSON.stringify({
       type: "transfer_break",
-      data: { code },
+      data: uuid ? { uuid, code } : { code },
     }));
   }
 
-  private sendBreak(ws: SocketLike, code: TransferErrorCode): void {
+  private sendBreak(ws: SocketLike, code: TransferErrorCode, uuid?: string): void {
     ws.send(JSON.stringify({
       type: "transfer_break",
-      data: { code },
+      data: uuid ? { uuid, code } : { code },
     }));
   }
 }

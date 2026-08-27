@@ -82,7 +82,7 @@ describe("MessageHandler", () => {
       expect(result).toEqual({ ok: false, code: TransferErrorCode.AUTH_FAILED });
       expect(ws.sent[0]).toEqual({
         type: "transfer_break",
-        data: { code: TransferErrorCode.AUTH_FAILED },
+        data: { uuid: "c1", code: TransferErrorCode.AUTH_FAILED },
       });
     });
 
@@ -209,7 +209,7 @@ describe("MessageHandler", () => {
       expect(result).toEqual({ ok: false, code: TransferErrorCode.AUTH_FAILED });
       expect(consumerWs.sent[0]).toEqual({
         type: "transfer_break",
-        data: { code: TransferErrorCode.SUBSCRIBE_FAILED },
+        data: { uuid: "c1", code: TransferErrorCode.SUBSCRIBE_FAILED },
       });
     });
 
@@ -227,7 +227,7 @@ describe("MessageHandler", () => {
       expect(result).toEqual({ ok: false, code: TransferErrorCode.SUBSCRIBE_FAILED });
       expect(consumerWs.sent[0]).toEqual({
         type: "transfer_break",
-        data: { code: TransferErrorCode.SUBSCRIBE_FAILED },
+        data: { uuid: "nonexistent", code: TransferErrorCode.SUBSCRIBE_FAILED },
       });
     });
 
