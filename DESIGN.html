@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Socket Transfer — 设计文档</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1565C0;
+    --md-primary-light: #E3F2FD;
+    --md-primary-dark: #0D47A1;
+    --md-secondary: #00897B;
+    --md-surface: #FFFFFF;
+    --md-background: #FAFAFA;
+    --md-error: #D32F2F;
+    --md-warning: #F57F17;
+    --md-success: #2E7D32;
+    --md-on-surface: #212121;
+    --md-on-surface-medium: #616161;
+    --md-on-surface-light: #9E9E9E;
+    --md-outline: #E0E0E0;
+    --md-shadow-1: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.24);
+    --md-shadow-2: 0 3px 6px rgba(0,0,0,.15), 0 2px 4px rgba(0,0,0,.12);
+    --md-shadow-3: 0 10px 20px rgba(0,0,0,.15), 0 3px 6px rgba(0,0,0,.10);
+    --md-radius: 12px;
+    --md-radius-sm: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Roboto', system-ui, sans-serif;
+    background: var(--md-background);
+    color: var(--md-on-surface);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== Top App Bar ===== */
+  .app-bar {
+    background: var(--md-primary);
+    color: white;
+    padding: 24px 32px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--md-shadow-2);
+  }
+  .app-bar h1 { font-size: 22px; font-weight: 500; letter-spacing: .02em; }
+  .app-bar .subtitle { font-size: 14px; opacity: .87; margin-top: 4px; font-weight: 300; }
+
+  /* ===== Layout ===== */
+  .container { max-width: 960px; margin: 0 auto; padding: 24px 24px 80px; }
+
+  /* ===== Cards ===== */
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    margin-bottom: 24px;
+    overflow: hidden;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-shadow-2); }
+  .card-header {
+    padding: 20px 24px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .card-header .icon {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .card-header .icon.blue { background: var(--md-primary-light); color: var(--md-primary); }
+  .card-header .icon.teal { background: #E0F2F1; color: var(--md-secondary); }
+  .card-header .icon.orange { background: #FFF3E0; color: #E65100; }
+  .card-header .icon.red { background: #FFEBEE; color: var(--md-error); }
+  .card-header .icon.green { background: #E8F5E9; color: var(--md-success); }
+  .card-header h2 { font-size: 18px; font-weight: 500; }
+  .card-body { padding: 0 24px 24px; }
+
+  /* ===== Chips ===== */
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px; font-weight: 500;
+    letter-spacing: .04em;
+  }
+  .chip.primary { background: var(--md-primary-light); color: var(--md-primary); }
+  .chip.teal { background: #E0F2F1; color: var(--md-secondary); }
+  .chip.orange { background: #FFF3E0; color: #E65100; }
+  .chip.error { background: #FFEBEE; color: var(--md-error); }
+  .chip.green { background: #E8F5E9; color: var(--md-success); }
+
+  /* ===== Tables ===== */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th {
+    text-align: left;
+    padding: 12px 16px;
+    font-weight: 500;
+    color: var(--md-on-surface-medium);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    border-bottom: 2px solid var(--md-outline);
+  }
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--md-outline);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover { background: #F5F5F5; }
+
+  /* ===== Code ===== */
+  code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    background: #F5F5F5;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #C62828;
+  }
+  pre {
+    background: #263238;
+    color: #ECEFF1;
+    padding: 20px 24px;
+    border-radius: var(--md-radius-sm);
+    overflow-x: auto;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 12px 0;
+  }
+  pre .comment { color: #607D8B; }
+  pre .keyword { color: #82B1FF; }
+  pre .string { color: #C3E88D; }
+  pre .type { color: #FFCB6B; }
+  pre .number { color: #F78C6C; }
+  pre .symbol { color: #89DDFF; }
+
+  /* ===== Lists ===== */
+  ul, ol { padding-left: 24px; margin: 8px 0; }
+  li { margin: 6px 0; font-size: 14px; }
+
+  /* ===== Diagram ===== */
+  .diagram {
+    background: #FAFAFA;
+    border: 1px solid var(--md-outline);
+    border-radius: var(--md-radius-sm);
+    padding: 24px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    overflow-x: auto;
+    white-space: pre;
+    margin: 12px 0;
+    color: var(--md-on-surface);
+  }
+
+  /* ===== Flow Steps ===== */
+  .flow { display: flex; flex-direction: column; gap: 0; margin: 16px 0; }
+  .flow-step {
+    display: flex; align-items: flex-start; gap: 16px;
+    position: relative;
+  }
+  .flow-step::before {
+    content: '';
+    position: absolute;
+    left: 19px; top: 40px; bottom: -1px;
+    width: 2px;
+    background: var(--md-outline);
+  }
+  .flow-step:last-child::before { display: none; }
+  .flow-dot {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 500;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .flow-dot.blue { background: var(--md-primary); color: white; }
+  .flow-dot.teal { background: var(--md-secondary); color: white; }
+  .flow-dot.orange { background: #F57F17; color: white; }
+  .flow-dot.red { background: var(--md-error); color: white; }
+  .flow-content { padding: 8px 0 24px; }
+  .flow-content strong { font-weight: 500; }
+  .flow-content .desc { color: var(--md-on-surface-medium); font-size: 14px; margin-top: 2px; }
+
+  /* ===== Section Divider ===== */
+  .section-divider {
+    display: flex; align-items: center; gap: 16px;
+    margin: 40px 0 24px;
+  }
+  .section-divider .line { flex: 1; height: 1px; background: var(--md-outline); }
+  .section-divider .label {
+    font-size: 12px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--md-on-surface-light);
+  }
+
+  /* ===== Roles Grid ===== */
+  .roles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin: 12px 0;
+  }
+  .role-card {
+    background: #F5F5F5;
+    border-radius: var(--md-radius-sm);
+    padding: 16px;
+    text-align: center;
+  }
+  .role-card .emoji { font-size: 32px; margin-bottom: 8px; }
+  .role-card .role-name { font-weight: 500; font-size: 14px; }
+  .role-card .role-desc { font-size: 13px; color: var(--md-on-surface-medium); margin-top: 4px; }
+
+  /* ===== Badge ===== */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .06em;
+  }
+  .badge.http { background: #E3F2FD; color: #1565C0; }
+  .badge.ws { background: #E8F5E9; color: #2E7D32; }
+
+  /* ===== Divider ===== */
+  hr { border: none; border-top: 1px solid var(--md-outline); margin: 16px 0; }
+
+  /* ===== Tags Row ===== */
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+
+  /* ===== Paragraph ===== */
+  p { font-size: 14px; margin: 8px 0; color: var(--md-on-surface); }
+  p.muted { color: var(--md-on-surface-medium); }
+</style>
+</head>
+<body>
+
+<!-- ===== App Bar ===== -->
+<div class="app-bar">
+  <h1>Socket Transfer</h1>
+  <div class="subtitle">WebSocket 消息中转服务 — 设计文档 v1.4</div>
+</div>
+
+<div class="container">
+
+<!-- ============================================================ -->
+<!-- 1. 概述 -->
+<!-- ============================================================ -->
+<div class="section-divider"><span class="line"></span><span class="label">一、概述</span><span class="line"></span></div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon blue">📡</div>
+    <h2>项目简介</h2>
+  </div>
+  <div class="card-body">
+    <p>手机和电脑没有公网 IP，无法直接建立 WebSocket 连接。通过中转服务器实现双向消息转发。</p>
+    <div class="diagram">手机 (无公网 IP)  ←—WebSocket—→  中转服务器 (公网 IP)  ←—WebSocket—→  电脑 (无公网 IP)
+                            只转发消息，不暴露端口，不做端口穿透</div>
+    <div class="tags">
+      <span class="chip primary">消息中转</span>
+      <span class="chip teal">非内网穿透</span>
+      <span class="chip green">自用场景</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 2. 安全分析 -->
+<!-- ============================================================ -->
+<div class="section-divider"><span class="line"></span><span class="label">二、安全分析</span><span class="line"></span></div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon red">🔒</div>
+    <h2>消息中转 vs 内网穿透</h2>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead>
+        <tr><th>维度</th><th>消息中转（本项目）</th><th>内网穿透（frp/ngrok）</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>做什么</strong></td><td>转发应用层消息</td><td>暴露内网 TCP/UDP 端口到公网</td></tr>
+        <tr><td><strong>暴露面</strong></td><td>只暴露业务接口</td><td>暴露整个端口（SSH、HTTP、数据库等）</td></tr>
+        <tr><td><strong>协议</strong></td><td>只走 WebSocket 应用数据</td><td>任意协议透传</td></tr>
+        <tr><td><strong>攻击面</strong></td><td>小 — 攻击者只能发协议支持的消息</td><td>大 — 可打暴露的任何服务</td></tr>
+        <tr><td><strong>是否内网穿透</strong></td><td>❌ 不算</td><td>✅ 就是</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon orange">🛡️</div>
+    <h2>安全措施</h2>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead><tr><th>风险</th><th>缓解措施</th></tr></thead>
+      <tbody>
+        <tr><td>传输层窃听</td><td><code>wss://</code>（TLS 加密）— 必须</td></tr>
+        <tr><td>未授权访问</td><td>uid + 64位 token 双因子认证（匿名注册，消费端需持有凭证）</td></tr>
+        <tr><td>暴力枚举</td><td>64位 hex token（256位熵），不可能枚举</td></tr>
+        <tr><td>消息过大</td><td>单条消息上限 1MB</td></tr>
+        <tr><td>滥用中转</td><td>严格限制只有配对成功的客户端能通信</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">自用场景，<code>wss://</code> + token 认证足够，不需要 E2EE。</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 3. 权限控制 -->
+<!-- ============================================================ -->
+<div class="section-divider"><span class="line"></span><span class="label">三、权限控制模型</span><span class="line"></span></div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon teal">🔑</div>
+    <h2>三个权限标志</h2>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead><tr><th>标志</th><th>作用</th><th>性质</th><th>格式</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>uid</code></td>
+          <td>用户身份 — 标识"你是谁"</td>
+          <td>客户端生成</td>
+          <td>11 位数字（随机生成）</td>
+        </tr>
+        <tr>
+          <td><code>token</code></td>
+          <td>认证凭证 — 证明"你有权"</td>
+          <td>客户端生成</td>
+          <td>64 位 hex 随机串</td>
+        </tr>
+        <tr>
+          <td><code>uuid</code></td>
+          <td>生产端连接 — 标识"连哪个"</td>
+          <td>Producer 自动生成</td>
+          <td>UUID v4</td>
+        </tr>
+        <tr>
+          <td><code>cuuid</code></td>
+          <td>消费端标识 — 标识"谁在用"</td>
+          <td>Consumer 自动生成</td>
+          <td>UUID v4</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="diagram">生产端 → 自动生成 uid + token + uuid → 匿名注册到中转服务器
+消费端 → 用同样的 uid + token → 查询可用连接列表 [uuid...]
+消费端 → 自动生成 cuuid → 选择 uuid → 建立消息转发通道</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 4. 角色定义 -->
+<!-- ============================================================ -->
+<div class="section-divider"><span class="line"></span><span class="label">四、角色定义</span><span class="line"></span></div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon blue">👥</div>
+    <h2>参与角色</h2>
+  </div>
+  <div class="card-body">
+    <div class="roles-grid">
+      <div class="role-card">
+        <div class="emoji">💻</div>
+        <div class="role-name">生产端 (Producer)</div>
+        <div class="role-desc">电脑端，注册一个可被订阅的链接</div>
+      </div>
+      <div class="role-card">
+        <div class="emoji">📱</div>
+        <div class="role-name">消费端 (Consumer)</div>
+        <div class="role-desc">手机端，订阅生产端的链接并收发消息</div>
+      </div>
+      <div class="role-card">
+        <div class="emoji">☁️</div>
+        <div class="role-name">中转服务器</div>
+        <div class="role-desc">无业务逻辑，只做认证 + 转发</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 5. 接口协议 -->
+<!-- ============================================================ -->
+<div class="section-divider"><span class="line"></span><span class="label">五、接口协议</span><span class="line"></span></div>
+
+<!-- HTTP -->
+<div class="card">
+  <div class="card-header">
+    <div class="icon blue">🌐</div>
+    <h2>HTTP 接口</h2>
+    <span class="badge http">HTTP</span>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead><tr><th>路由</th><th>方法</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>/links</code></td><td>GET</td><td>可用链接查询页面</td></tr>
+        <tr><td><code>/api/links</code></td><td>POST</td><td>查询链接 API，body: <code>{ uid, token }</code></td></tr>
+        <tr><td><code>/api/update-token</code></td><td>POST</td><td>更新 token API，body: <code>{ uid, newToken }</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Socket Messages -->
+<div class="card">
+  <div class="card-header">
+    <div class="icon teal">🔌</div>
+    <h2>WebSocket 消息协议</h2>
+    <span class="badge ws">WebSocket</span>
+  </div>
+  <div class="card-body">
+    <p style="margin-bottom:16px"><strong>客户端 → 服务器</strong></p>
+    <table>
+      <thead><tr><th>type</th><th>方向</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>register_transfer</code></td>
+          <td>生产端 → 服务器</td>
+          <td>注册连接，携带 <code>uid, token, uuid, name</code></td>
+        </tr>
+        <tr>
+          <td><code>list_transfer</code></td>
+          <td>消费端 → 服务器</td>
+          <td>查询可用链接列表，携带 <code>uid, token</code></td>
+        </tr>
+        <tr>
+          <td><code>subscribe_transfer</code></td>
+          <td>消费端 → 服务器</td>
+          <td>订阅指定链接，携带 <code>uid, token, uuid, cuuid</code></td>
+        </tr>
+        <tr>
+          <td><code>transfer_produce</code></td>
+          <td>生产端 → 服务器</td>
+          <td>发送消息：<code>{ data: { uuid, targetConsumer?, message } }</code></td>
+        </tr>
+        <tr>
+          <td><code>transfer_consume</code></td>
+          <td>消费端 → 服务器</td>
+          <td>回复消息：<code>{ data: { uuid, message } }</code>（服务端注入 <code>cuuid</code>）</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <hr>
+    <p style="margin-bottom:16px"><strong>服务器 → 客户端</strong></p>
+    <table>
+      <thead><tr><th>type</th><th>方向</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>transfer_list</code></td>
+          <td>服务器 → 消费端</td>
+          <td>链接列表：<code>{ data: { list: [{ uuid, name }] } }</code></td>
+        </tr>
+        <tr>
+          <td><code>transfer_connect</code></td>
+          <td>服务器 → 消费端</td>
+          <td>订阅成功：<code>{ data: { uuid } }</code></td>
+        </tr>
+        <tr>
+          <td><code>transfer_break</code></td>
+          <td>服务器 → 客户端</td>
+          <td>连接断开/错误：<code>{ data: { code } }</code></td>
+        </tr>
+        <tr>
+          <td><code>transfer_error</code></td>
+          <td>服务器 → 客户端</td>
+          <td>业务错误（如消息过大）：<code>{ data: { code, message } }</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 6. 错误码 -->
+<!-- ============================================================ -->
+<div class="section-divider"><span class="line"></span><span class="label">六、错误码</span><span class="line"></span></div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon red">⚠️</div>
+    <h2>错误码定义</h2>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead><tr><th>code</th><th>含义</th><th>方向</th><th>触发场景</th><th>消费端行为</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>10001</code></td>
+          <td>生产端断开</td>
+          <td>→ 消费端</td>
+          <td>生产端断开连接时立即推送</td>
+          <td>触发 onBreak，不自动重连</td>
+        </tr>
+        <tr>
+          <td><code>10002</code></td>
+          <td>订阅失败</td>
+          <td>→ 消费端</td>
+          <td>鉴权失败或 uuid 不存在</td>
+          <td>提示鉴权或 uuid 错误</td>
+        </tr>
+        <tr>
+          <td><code>10003</code></td>
+          <td>鉴权失败</td>
+          <td>→ 生产端</td>
+          <td>注册时 uid/token 不合法</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><code>10004</code></td>
+          <td>凭证变更</td>
+          <td>→ 消费端</td>
+          <td>生产端重连时 token 变了</td>
+          <td>SDK 自动重新鉴权 + 重订阅</td>
+        </tr>
+        <tr>
+          <td><code>10005</code></td>
+          <td>消息过大</td>
+          <td>→ 发送方</td>
+          <td>单条消息超过 1MB</td>
+          <td>提示消息过大</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 7. 业务流程 -->
+<!-- ============================================================ -->
+<div class="section-divider"><span class="line"></span><span class="label">七、业务流程</span><span class="line"></span></div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon green">🔄</div>
+    <h2>消息流转全景</h2>
+  </div>
+  <div class="card-body">
+    <div class="diagram">生产端(电脑)                          中转服务器                          消费端(手机)
+    │                                    │                                  │
+    │── register_transfer ──────────────>│                                  │
+    │   { uid, token, uuid, name }      │ (创建 Connection)                 │
+    │                                    │                                  │
+    │                                    │<──── list_transfer ──────────────│
+    │                                    │──── transfer_list ──────────────>│
+    │                                    │   { list: [{ uuid, name }] }    │
+    │                                    │                                  │
+    │                                    │<──── subscribe_transfer ─────────│
+    │                                    │   { uid, token, uuid, cuuid }   │
+    │                                    │ (创建 Forwarder, ID = cuuid)      │
+    │                                    │──── transfer_connect ───────────>│
+    │                                    │   { uuid }                      │
+    │                                    │                                  │
+    │── transfer_produce ──────────────>│── Forwarder.send(message) ──────>│
+    │   { uuid, message }               │                                  │
+    │                                    │                                  │
+    │<──── 注入 cuuid ─────────────────│<──── transfer_consume ───────────│
+    │   { uuid, cuuid, message }        │   { uuid, message }             │
+    │                                    │                                  │
+    │── transfer_produce ──────────────>│ (定向路由: targetConsumer=cuuid) │
+    │   { uuid, targetConsumer, msg }   │── Forwarder.send(message) ──────>│
+    │                                    │                                  │
+    │  ╳ 断开连接                         │                                  │
+    │                                    │ (5分钟倒计时)                     │
+    │                                    │──── transfer_break(10001) ──────>│
+    │                                    │ (销毁 Connection + Forwarder)     │</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon teal">🔌</div>
+    <h2>① 匿名注册流程（生产端）</h2>
+    <span class="badge ws">WebSocket</span>
+  </div>
+  <div class="card-body">
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-dot teal">1</div>
+        <div class="flow-content">
+          <strong>生产端自动生成凭证</strong>
+          <div class="desc">客户端生成随机 uid（11位数字）+ token（64位hex），无需服务器预配置</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot teal">2</div>
+        <div class="flow-content">
+          <strong>发送注册消息</strong>
+          <div class="desc"><code>{ type: "register_transfer", uid, token, uuid, name }</code></div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot teal">3</div>
+        <div class="flow-content">
+          <strong>服务器校验格式 + 自动入库</strong>
+          <div class="desc">校验 uid（11位数字）和 token（64位hex）格式，首次注册自动存入 store</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot teal">3</div>
+        <div class="flow-content">
+          <strong>创建/替换 Connection</strong>
+          <div class="desc">新 uuid → 创建；已存在 uuid → 接管旧连接的 subscribers</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon orange">🔗</div>
+    <h2>② 订阅链接流程（消费端）</h2>
+    <span class="badge ws">WebSocket</span>
+  </div>
+  <div class="card-body">
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-dot orange">1</div>
+        <div class="flow-content">
+          <strong>消费端查询可用链接</strong>
+          <div class="desc"><code>{ type: "list_transfer", uid, token }</code> → 返回 <code>transfer_list</code></div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot orange">2</div>
+        <div class="flow-content">
+          <strong>消费端订阅指定链接</strong>
+          <div class="desc"><code>{ type: "subscribe_transfer", uid, token, uuid, cuuid }</code></div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot orange">3</div>
+        <div class="flow-content">
+          <strong>服务器创建 Forwarder</strong>
+          <div class="desc">注册到 Connection.subscribers，返回 <code>transfer_connect</code></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon green">📨</div>
+    <h2>③ 转发逻辑</h2>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead><tr><th>方向</th><th>消息格式</th><th>转发方式</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>生产端 → 消费端</strong></td>
+          <td><code>{ type: "transfer_produce", data: { uuid, targetConsumer?, message } }</code></td>
+          <td>有 <code>targetConsumer</code> → 定向发给该 Forwarder；无 → 广播给所有 subscribers</td>
+        </tr>
+        <tr>
+          <td><strong>消费端 → 生产端</strong></td>
+          <td><code>{ type: "transfer_consume", data: { uuid, message } }</code></td>
+          <td>服务端注入 <code>cuuid</code>，通过 Connection.ws 转发 <code>{ uuid, cuuid, message }</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="muted" style="margin-top:12px">转发时只传递 <code>message</code> 字段，不转发外层包装。消费端收到的是生产端的原始消息体。</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 8. 边界情况 -->
+<!-- ============================================================ -->
+<div class="section-divider"><span class="line"></span><span class="label">八、边界情况处理</span><span class="line"></span></div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon orange">⚡</div>
+    <h2>连接生命周期</h2>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead><tr><th>场景</th><th>处理方式</th></tr></thead>
+      <tbody>
+        <tr><td>生产端断线重连（5分钟内）</td><td>新 ws 替换旧 ws，subscribers 不动，继续转发</td></tr>
+        <tr><td>生产端重连时带不同 uuid</td><td>视为新连接，旧连接走超时销毁流程</td></tr>
+        <tr><td>生产端重连时 token 变了</td><td>更新 token → 推送 <code>10004</code> 给 subscribers → 清空 subscribers → SDK 自动重订阅</td></tr>
+        <tr><td>消费端断线</td><td>立即销毁 Forwarder，从 subscribers 移除</td></tr>
+        <tr><td>消费端断线后重连</td><td>需重新 <code>subscribe_transfer</code>，不会自动恢复</td></tr>
+        <tr><td>消费端收到 10004</td><td>SDK 自动重新鉴权 + 重订阅（优先原 uuid，否则第一个可用）</td></tr>
+        <tr><td>消费端收到 10001</td><td>触发 <code>onBreak</code> 回调，不自动重连</td></tr>
+        <tr><td>同一 uuid 重复注册</td><td>新连接替换旧连接，接管旧 subscribers</td></tr>
+        <tr><td>同一消费端重复订阅</td><td>去重：同一 ws 只允许一个 Forwarder</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon red">💥</div>
+    <h2>并发与竞态</h2>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead><tr><th>场景</th><th>处理方式</th></tr></thead>
+      <tbody>
+        <tr><td>生产端断开 + 消费端同时发消息</td><td>消息静默丢弃（Connection 不存在）</td></tr>
+        <tr><td>生产端断开 + 消费端同时订阅</td><td>返回 <code>10002</code>（链接不存在）</td></tr>
+        <tr><td>5分钟倒计时期间消费端发消息</td><td>消息丢弃（生产端 ws 已断），消费端已收到 10001</td></tr>
+        <tr><td>服务器进程重启</td><td>内存中所有连接丢失，客户端需重连（自用可接受）</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon teal">📏</div>
+    <h2>资源限制</h2>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead><tr><th>限制项</th><th>值</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>单条消息大小</td><td><strong>1 MB</strong></td><td>超过返回 <code>10005</code></td></tr>
+        <tr><td>subscribers 数量</td><td><strong>不限</strong></td><td>自用场景无需限制</td></tr>
+        <tr><td>断线重连超时</td><td><strong>5 分钟</strong></td><td>超时后销毁 Connection</td></tr>
+        <tr><td>超时检查间隔</td><td><strong>30 秒</strong></td><td>定时清理过期连接</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 9. 转发器设计 -->
+<!-- ============================================================ -->
+<div class="section-divider"><span class="line"></span><span class="label">九、转发器设计</span><span class="line"></span></div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon blue">🔧</div>
+    <h2>Forwarder 接口</h2>
+  </div>
+  <div class="card-body">
+    <p>参考 <code>prime-agent/packages/ui-client/src/transport.ts</code> 的 <code>createCallbackTransport</code> 模式：</p>
+    <pre><span class="keyword">interface</span> <span class="type">Forwarder</span> {
+  id: <span class="type">string</span>                    <span class="comment">// cuuid: 消费者唯一标识，用于从 subscribers 中移除</span>
+
+  send(data: <span class="type">unknown</span>): <span class="type">void</span>     <span class="comment">// 向消费端发送消息（生产端→消费端）</span>
+                                <span class="comment">// 内部调用 consumerWs.send(data)</span>
+
+  destroy(): <span class="type">void</span>               <span class="comment">// 销毁转发器，移除所有监听</span>
+}</pre>
+    <p style="margin-top:12px"><strong>生命周期：</strong></p>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-dot blue">创建</div>
+        <div class="flow-content"><div class="desc">消费端 <code>subscribe_transfer</code> 成功时创建</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot teal">运行</div>
+        <div class="flow-content"><div class="desc">双向转发消息</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot red">销毁</div>
+        <div class="flow-content">
+          <div class="desc">消费端断开 → 立即销毁</div>
+          <div class="desc">生产端断开 → 立即推送 <code>transfer_break(10001)</code>，5 分钟超时后销毁 Connection</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 10. 客户端 SDK -->
+<!-- ============================================================ -->
+<div class="section-divider"><span class="line"></span><span class="label">十、客户端 SDK</span><span class="line"></span></div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon blue">💻</div>
+    <h2>Producer SDK（电脑端）</h2>
+  </div>
+  <div class="card-body">
+    <pre><span class="keyword">import</span> { createProducer } <span class="keyword">from</span> <span class="string">"socket-transfer"</span>;
+
+<span class="keyword">const</span> producer = <span class="type">createProducer</span>({
+  url:     <span class="string">"wss://relay.example.com"</span>,
+  uid:     <span class="string">"13800138000"</span>,
+  token:   <span class="string">"a1b2c3...64chars"</span>,
+  name:    <span class="string">"My Agent"</span>,           <span class="comment">// 可选，默认 "producer"</span>
+});
+
+console.<span class="type">log</span>(producer.uuid);  <span class="comment">// 自动生成的生产端连接标识</span>
+
+<span class="comment">// 监听消费端发来的消息</span>
+<span class="comment">// msg = { uuid, cuuid, message }</span>
+producer.<span class="type">onMessage</span>((msg) => {
+  console.<span class="type">log</span>(<span class="string">"Received from"</span>, msg.cuuid, <span class="string">":"</span>, msg.message);
+});
+
+<span class="comment">// 向所有订阅的消费端广播</span>
+producer.<span class="type">send</span>({ text: <span class="string">"hello from producer"</span> });
+
+<span class="comment">// 向特定消费端定向发送</span>
+producer.<span class="type">sendTo</span>(<span class="string">"cuuid-xxx"</span>, { text: <span class="string">"hello consumer"</span> });
+
+<span class="comment">// 获取 per-consumer channel（自动路由）</span>
+<span class="keyword">const</span> channel = producer.<span class="type">channel</span>(<span class="string">"cuuid-xxx"</span>);
+channel.<span class="type">send</span>({ text: <span class="string">"hello via channel"</span> }); <span class="comment">// 自动定向到该 consumer</span>
+
+<span class="comment">// 典型用法：收到消息后用 channel 回复</span>
+producer.<span class="type">onMessage</span>((msg) => {
+  <span class="keyword">const</span> ch = producer.<span class="type">channel</span>(msg.cuuid);
+  ch.<span class="type">send</span>({ type: <span class="string">"response"</span>, data: <span class="string">"ok"</span> }); <span class="comment">// 只发给该 consumer</span>
+});
+
+<span class="comment">// 监听连接状态</span>
+producer.<span class="type">onStateChange</span>((state) => {
+  <span class="comment">// "connecting" | "connected" | "disconnected" | "closed"</span>
+});
+
+<span class="comment">// 断线自动重连（默认开启）</span>
+<span class="comment">// producer.close() 手动关闭</span></pre>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon teal">📱</div>
+    <h2>Consumer SDK（手机端）</h2>
+  </div>
+  <div class="card-body">
+    <pre><span class="keyword">import</span> { createConsumer } <span class="keyword">from</span> <span class="string">"socket-transfer"</span>;
+
+<span class="keyword">const</span> consumer = <span class="type">createConsumer</span>({
+  url:   <span class="string">"wss://relay.example.com"</span>,
+  uid:   <span class="string">"13800138000"</span>,
+  token: <span class="string">"a1b2c3...64chars"</span>,
+});
+
+console.<span class="type">log</span>(consumer.cuuid);  <span class="comment">// 自动生成的消费端唯一标识</span>
+
+<span class="comment">// 查询可用链接</span>
+<span class="keyword">const</span> list = <span class="keyword">await</span> consumer.<span class="type">listConnections</span>();
+<span class="comment">// → [{ uuid: "my-agent-001", name: "My Agent" }]</span>
+
+<span class="comment">// 订阅指定链接</span>
+consumer.<span class="type">subscribe</span>(<span class="string">"my-agent-001"</span>);
+
+<span class="comment">// 监听连接建立</span>
+consumer.<span class="type">onConnect</span>((uuid) => {
+  console.log(<span class="string">"Connected to:"</span>, uuid);
+});
+
+<span class="comment">// 监听生产端消息</span>
+consumer.<span class="type">onMessage</span>((msg) => {
+  console.log(<span class="string">"Received:"</span>, msg);
+});
+
+<span class="comment">// 向生产端发送消息</span>
+consumer.<span class="type">send</span>({ text: <span class="string">"hello from consumer"</span> });
+
+<span class="comment">// 监听断开事件</span>
+consumer.<span class="type">onBreak</span>((code) => {
+  <span class="keyword">if</span> (code === <span class="number">10001</span>) console.<span class="type">log</span>(<span class="string">"生产端断开"</span>);
+  <span class="keyword">if</span> (code === <span class="number">10004</span>) {
+    <span class="comment">// SDK 自动重新鉴权 + 重订阅，onConnect 会再次触发</span>
+    console.<span class="type">log</span>(<span class="string">"凭证变更，自动重连中..."</span>);
+  }
+});</pre>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon orange">📋</div>
+    <h2>SDK 接口一览</h2>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead><tr><th>方法</th><th>Producer</th><th>Consumer</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>send(msg)</code></td><td>✅</td><td>✅</td><td>发送消息（广播）</td></tr>
+        <tr><td><code>sendTo(cuuid, msg)</code></td><td>✅</td><td>—</td><td>定向发送给特定消费端</td></tr>
+        <tr><td><code>channel(cuuid)</code></td><td>✅</td><td>—</td><td>获取 per-consumer channel（自动路由）</td></tr>
+        <tr><td><code>onMessage(cb)</code></td><td>✅</td><td>✅</td><td>监听消息</td></tr>
+        <tr><td><code>onStateChange(cb)</code></td><td>✅</td><td>✅</td><td>监听连接状态</td></tr>
+        <tr><td><code>onError(cb)</code></td><td>✅</td><td>✅</td><td>监听错误</td></tr>
+        <tr><td><code>close()</code></td><td>✅</td><td>✅</td><td>关闭连接</td></tr>
+        <tr><td><code>connected</code></td><td>✅</td><td>✅</td><td>是否已连接</td></tr>
+        <tr><td><code>uuid</code></td><td>✅</td><td>—</td><td>自动生成的生产端标识</td></tr>
+        <tr><td><code>cuuid</code></td><td>—</td><td>✅</td><td>自动生成的消费端标识</td></tr>
+        <tr><td><code>listConnections()</code></td><td>—</td><td>✅</td><td>查询可用链接</td></tr>
+        <tr><td><code>subscribe(uuid)</code></td><td>—</td><td>✅</td><td>订阅指定链接</td></tr>
+        <tr><td><code>onConnect(cb)</code></td><td>—</td><td>✅</td><td>监听订阅成功</td></tr>
+        <tr><td><code>onBreak(cb)</code></td><td>—</td><td>✅</td><td>监听断开事件</td></tr>
+        <tr><td><code>subscribedUuid</code></td><td>—</td><td>✅</td><td>当前订阅的 uuid</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 11. 技术栈 -->
+<!-- ============================================================ -->
+<div class="section-divider"><span class="line"></span><span class="label">十一、技术栈</span><span class="line"></span></div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon green">📦</div>
+    <h2>依赖</h2>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead><tr><th>包</th><th>用途</th></tr></thead>
+      <tbody>
+        <tr><td><code>ws</code></td><td>WebSocket 服务器</td></tr>
+        <tr><td><code>typescript</code></td><td>类型安全</td></tr>
+        <tr><td><code>vitest</code></td><td>单元测试</td></tr>
+        <tr><td><code>esbuild</code></td><td>SDK 浏览器版打包</td></tr>
+        <tr><td><code>@types/node</code></td><td>Node.js 类型</td></tr>
+        <tr><td><code>@types/ws</code></td><td>ws 类型</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon blue">📁</div>
+    <h2>项目结构</h2>
+  </div>
+  <div class="card-body">
+    <pre>socket-transfer/
+├── src/
+│   ├── types.ts              <span class="comment">// 类型定义 + 错误码 + 常量</span>
+│   ├── auth.ts               <span class="comment">// Token 生成、格式校验、消息大小校验</span>
+│   ├── store.ts              <span class="comment">// 内存存储：用户（匿名注册）、连接、订阅者</span>
+│   ├── forwarder.ts          <span class="comment">// 转发器（Transport 模式）</span>
+│   ├── connection-manager.ts <span class="comment">// 连接生命周期管理</span>
+│   ├── message-handler.ts    <span class="comment">// Socket 消息路由 + socketRoles 角色追踪</span>
+│   ├── client.ts             <span class="comment">// Producer & Consumer SDK（Node.js + 浏览器通用）</span>
+│   ├── server.ts             <span class="comment">// HTTP + WebSocket 服务入口</span>
+│   └── index.ts              <span class="comment">// 统一导出</span>
+├── dist/
+│   └── client.browser.js     <span class="comment">// SDK 浏览器版（esbuild 打包）</span>
+├── example/
+│   ├── produce.html          <span class="comment">// Producer 演示页（引用 SDK）</span>
+│   ├── consume.html          <span class="comment">// Consumer 演示页（引用 SDK）</span>
+│   └── start-server.ts       <span class="comment">// 启动脚本</span>
+├── tests/
+│   ├── auth.test.ts          <span class="comment">// 15 tests</span>
+│   ├── store.test.ts         <span class="comment">// 16 tests</span>
+│   ├── forwarder.test.ts     <span class="comment">// 6 tests</span>
+│   ├── connection-manager.test.ts  <span class="comment">// 9 tests</span>
+│   ├── message-handler.test.ts     <span class="comment">// 19 tests</span>
+│   └── client.test.ts        <span class="comment">// 9 tests (SDK 集成测试)</span>
+├── DESIGN.html               <span class="comment">// 本文档</span>
+├── package.json
+└── tsconfig.json</pre>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 11. 测试覆盖 -->
+<!-- ============================================================ -->
+<div class="section-divider"><span class="line"></span><span class="label">十二、测试覆盖</span><span class="line"></span></div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon green">✅</div>
+    <h2>77 个单元测试</h2>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead><tr><th>模块</th><th>测试数</th><th>覆盖场景</th></tr></thead>
+      <tbody>
+        <tr><td><code>auth</code></td><td>15</td><td>token 生成唯一性、uid/token 格式校验、消息大小校验</td></tr>
+        <tr><td><code>store</code></td><td>17</td><td>用户增删改查、hasUser、连接 CRUD、订阅者管理、超时检测</td></tr>
+        <tr><td><code>forwarder</code></td><td>6</td><td>消息发送、销毁后行为、producerSend 回调</td></tr>
+        <tr><td><code>connection-manager</code></td><td>9</td><td>匿名注册、重连、超时销毁、凭证变更通知、断开通知</td></tr>
+        <tr><td><code>message-handler</code></td><td>20</td><td>5种消息类型的正常/异常路径、handleClose 角色路由、匿名注册</td></tr>
+        <tr><td><code>client (SDK)</code></td><td>9</td><td>Producer/Consumer 连接注册、消息收发、断线通知、10004 自动重订阅、关闭</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Footer -->
+<div style="text-align:center; padding:40px 0 0; color:var(--md-on-surface-light); font-size:12px;">
+  Socket Transfer Design Document v1.4 — 2026-08-27
+</div>
+
+</div><!-- /container -->
+</body>
+</html>

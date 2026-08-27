@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Producer（电脑端）</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; }
+    h2 { color: #1a73e8; }
+    .credentials { background: #f8f9fa; border: 1px solid #dadce0; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    .credentials .label { font-size: 12px; color: #5f6368; text-transform: uppercase; }
+    .credentials .value { font-family: monospace; font-size: 15px; color: #202124; word-break: break-all; user-select: all; }
+    button { padding: 8px 16px; border: 1px solid #dadce0; border-radius: 4px; background: #fff; cursor: pointer; margin: 4px; }
+    button:hover { background: #f1f3f4; }
+    button.connected { background: #e6f4ea; border-color: #34a853; }
+    button.disconnected { background: #fce8e6; border-color: #ea4335; }
+    button.orange { background: #fef7e0; border-color: #f9ab00; }
+    #msg { width: 100%; padding: 8px; box-sizing: border-box; }
+    #log { background: #f8f9fa; border: 1px solid #dadce0; padding: 12px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 13px; margin-top: 12px; }
+  </style>
+</head>
+<body>
+
+<h2>📤 Producer（电脑端）</h2>
+
+<div class="credentials">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <span style="font-weight: 600;">连接凭证</span>
+    <button onclick="doRegenerate()" title="生成新的 uid + token">🔄 重新生成</button>
+  </div>
+  <div style="margin-top: 8px;">
+    <div class="label">UID</div>
+    <div class="value" id="cred-uid"></div>
+  </div>
+  <div style="margin-top: 8px;">
+    <div class="label">Token</div>
+    <div class="value" id="cred-token"></div>
+  </div>
+  <div style="margin-top: 8px; font-size: 12px; color: #5f6368;">
+    将以上凭证发送给消费端，用于订阅连接。
+  </div>
+</div>
+
+<div>
+  <label>Name: <input id="name" value="agent-1" style="width: 150px;" /></label>
+  <label style="margin-left: 12px;">Server: <input id="server" value="ws://localhost:3000" style="width: 220px;" /></label>
+</div>
+<div style="margin-top: 12px;">
+  <button id="btn-connect" onclick="doConnect()">连接</button>
+  <button id="btn-disconnect" class="disconnected" onclick="doDisconnect()">断开</button>
+  <button id="btn-reconnect-token" class="orange" onclick="doReconnectWithNewToken()">换 Token 重连（触发 10004）</button>
+</div>
+
+<h3>发送消息</h3>
+<div>
+  <input id="msg" placeholder="输入消息..." value="hello from producer" />
+  <button onclick="doSend()" style="margin-top: 4px;">发送</button>
+</div>
+
+<div id="log"></div>
+
+<script type="module">
+  import { createProducer } from '../dist/client.browser.js';
+
+  let producer = null;
+  let uid = '';
+  let token = '';
+
+  // ===== 自动生成凭证 =====
+
+  function generateUid() {
+    const arr = new Uint8Array(4);
+    crypto.getRandomValues(arr);
+    const num = (arr[0] % 9 + 1) * 1e10 + Number(BigInt(Date.now()) % 10000000000n);
+    return String(num).slice(0, 11);
+  }
+
+  function generateToken() {
+    const arr = new Uint8Array(32);
+    crypto.getRandomValues(arr);
+    return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function showCredentials() {
+    document.getElementById('cred-uid').textContent = uid;
+    document.getElementById('cred-token').textContent = token;
+  }
+
+  function initCredentials() {
+    uid = generateUid();
+    token = generateToken();
+    showCredentials();
+  }
+
+  // ===== 操作 =====
+
+  window.doConnect = function () {
+    if (producer) producer.close();
+    uid = document.getElementById('cred-uid').textContent;
+    token = document.getElementById('cred-token').textContent;
+
+    const url = document.getElementById('server').value;
+    const name = document.getElementById('name').value || 'producer';
+
+    log('⏳ Connecting...');
+    producer = createProducer({ url, uid, token, name });
+
+    producer.onStateChange(state => {
+      log('State: ' + state);
+      setUiState(state);
+    });
+
+    producer.onMessage(msg => {
+      log('📩 From consumer: ' + JSON.stringify(msg));
+    });
+
+    producer.onError(err => {
+      log('❌ Error: ' + err.message);
+    });
+  };
+
+  window.doDisconnect = function () {
+    if (producer) {
+      producer.close();
+      producer = null;
+    }
+    setUiState('disconnected');
+    log('🔌 已断开');
+  };
+
+  function setUiState(state) {
+    const btn = document.getElementById('btn-connect');
+    if (state === 'connected') {
+      btn.className = 'connected';
+      btn.textContent = '✅ 已连接';
+    } else {
+      btn.className = '';
+      btn.textContent = '连接';
+    }
+  }
+
+  window.doSend = function () {
+    if (!producer || !producer.connected) {
+      log('❌ Not connected');
+      return;
+    }
+    const text = document.getElementById('msg').value.trim();
+    if (!text) return;
+
+    let message;
+    try { message = JSON.parse(text); } catch { message = { text }; }
+
+    producer.send(message);
+    log('📤 Sent: ' + JSON.stringify(message));
+  };
+
+  window.doReconnectWithNewToken = async function () {
+    if (!producer || !producer.connected) {
+      log('❌ Not connected, please connect first');
+      return;
+    }
+
+    log('🔄 Generating new token and reconnecting...');
+
+    // 1. 生成新 token
+    const oldToken = token;
+    token = generateToken();
+    showCredentials();
+    log('   New token: ' + token.slice(0, 16) + '...');
+
+    // 2. 调用服务器更新 token
+    const serverHttp = document.getElementById('server').value.replace('ws://', 'http://').replace('wss://', 'https://');
+    try {
+      const resp = await fetch(serverHttp + '/api/update-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid, newToken: token }),
+      });
+      const data = await resp.json();
+      log('   Server updated token: ' + JSON.stringify(data));
+    } catch (e) {
+      log('   ⚠️ Failed to update server token: ' + e.message + ' (will still reconnect)');
+    }
+
+    // 3. 关闭旧连接
+    producer.close();
+    producer = null;
+    log('   Old connection closed');
+
+    // 4. 用新 token 重新连接（会触发服务端 10004 通知消费端）
+    setTimeout(() => {
+      const url = document.getElementById('server').value;
+      const name = document.getElementById('name').value || 'producer';
+      producer = createProducer({ url, uid, token, name });
+
+      producer.onStateChange(state => {
+        log('State: ' + state);
+        setUiState(state);
+      });
+
+      producer.onMessage(msg => {
+        log('📩 From consumer: ' + JSON.stringify(msg));
+      });
+
+      producer.onError(err => {
+        log('❌ Error: ' + err.message);
+      });
+    }, 500);
+  };
+
+  window.doRegenerate = function () {
+    if (producer && producer.connected) {
+      log('⚠️ 请先断开连接再重新生成凭证');
+      return;
+    }
+    initCredentials();
+    log('🔄 已生成新凭证');
+  };
+
+  // ===== Log =====
+
+  function log(text) {
+    const el = document.getElementById('log');
+    el.innerHTML += text + '<br>';
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // ===== Init =====
+  initCredentials();
+</script>
+
+</body>
+</html>
