@@ -1,4 +1,4 @@
-import { startTransferServer } from "../src/index.js";
+import { startTransferServer } from "../src/server.js";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
