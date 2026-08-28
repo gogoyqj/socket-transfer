@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "socket-transfer": "dist/cli.js"
+  },
   "scripts": {
+    "start": "node dist/cli.js",
     "build": "tsc && npm run build:browser",
     "build:browser": "esbuild src/client.ts --bundle --format=esm --outfile=dist/client.browser.js --platform=browser",
     "test": "vitest run",
