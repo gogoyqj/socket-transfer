@@ -15,7 +15,7 @@
 
 ## Client SDK
 
-- Producer and Consumer classes in `client.ts`
+- `createProducer()` and `createConsumer()` factory functions in `client.ts`
 - Cross-platform: uses `ws` in Node.js, native `WebSocket` in browser
 - Browser bundle built via esbuild (`npm run build`)
 - `SocketLike` interface enables mock-based testing

@@ -1,5 +1,28 @@
 # API Reference
 
+## CLI
+
+```bash
+# Start the server
+node dist/cli.js [options]
+npm start -- [options]
+
+# Global install
+npx socket-transfer [options]
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--port <number>` | `3000` (or `PORT` env) | Server port |
+| `--root <path>` | cwd | Static file root directory |
+| `--help` | — | Show help |
+
+The server shuts down gracefully on `SIGINT` / `SIGTERM`.
+
+---
+
 ## Server HTTP Endpoints
 
 ### `POST /api/links`
@@ -14,8 +37,8 @@ Query connections by uid and token. Returns list of producer connections for the
 **Response:**
 ```json
 {
-  "connections": [
-    { "uuid": "producer-uuid", "disconnected": false }
+  "list": [
+    { "uuid": "producer-uuid", "name": "agent-1" }
   ]
 }
 ```
@@ -26,7 +49,7 @@ Update a user's authentication token.
 
 **Request:**
 ```json
-{ "uid": "13800138000", "oldToken": "current-token", "newToken": "new-token" }
+{ "uid": "13800138000", "newToken": "new-64-char-hex-token" }
 ```
 
 ### `GET /links`
@@ -40,49 +63,66 @@ Web UI for querying connections interactively.
 ### Producer
 
 ```typescript
-import { Producer } from 'socket-transfer'
+import { createProducer } from 'socket-transfer'
 
-const producer = new Producer({
+const producer = createProducer({
   url: 'ws://localhost:3000',
-  id: 'my-producer-id',        // stable identity (UUID derived from this)
   uid: '13800138000',           // 11-digit phone number
-  token: 'token-from-server'    // 64-char hex
+  token: 'token-from-server',   // 64-char hex
+  id: 'my-producer-id',         // optional: stable identity (UUID derived from this)
+  name: 'agent-1',              // optional: display name (default: "producer")
+  reconnect: true,              // optional: auto-reconnect (default: true)
+  reconnectDelay: 3000,         // optional: reconnect delay in ms (default: 3000)
 })
-
-producer.connect()
 
 producer.send(data)              // broadcast to all subscribers
 producer.sendTo(cuuid, data)    // target specific consumer
+producer.channel(cuuid)         // get a per-consumer channel
 
-producer.onMessage(callback)     // (data, from) => void
-producer.onStateChange(cb)       // (state) => void — 'connecting' | 'connected' | 'disconnected'
-producer.onError(cb)             // (error) => void
+producer.onMessage(callback)     // (message) => void
+producer.onError(callback)       // (error) => void — original ws error, no wrapping
+producer.onStateChange(callback) // (state: ProducerState) => void
+
+producer.connected               // boolean
+producer.uuid                    // auto-generated connection uuid
+
 producer.close()
 ```
+
+**ProducerState:** `"connecting"` | `"connected"` | `"disconnected"` | `"closed"`
 
 ### Consumer
 
 ```typescript
-import { Consumer } from 'socket-transfer'
+import { createConsumer } from 'socket-transfer'
 
-const consumer = new Consumer({
+const consumer = createConsumer({
   url: 'ws://localhost:3000',
   uid: '13800138000',
-  token: 'token-from-server'
+  token: 'token-from-server',
+  reconnect: true,
+  reconnectDelay: 3000,
 })
 
-consumer.connect()
-
-const connections = await consumer.listConnections(uid, token)
-await consumer.subscribe(producerUuid, uid, token)
+const connections = await consumer.listConnections()
+consumer.subscribe(producerUuid)
 
 consumer.send(data)              // send to subscribed producer
 
-consumer.onMessage(callback)     // (data, from) => void
-consumer.onStateChange(cb)       // (state) => void
-consumer.onError(cb)             // (error) => void
+consumer.onMessage(callback)     // (message) => void
+consumer.onConnect(callback)     // (uuid: string) => void — fired on subscribe success
+consumer.onBreak(callback)       // (code: TransferErrorCode) => void — subscription broken
+consumer.onError(callback)       // (error) => void — original ws error, no wrapping
+consumer.onStateChange(callback) // (state: ConsumerState) => void
+
+consumer.connected               // boolean
+consumer.subscribedUuid          // string | null
+consumer.cuuid                   // auto-generated consumer unique ID
+
 consumer.close()
 ```
+
+**ConsumerState:** `"connecting"` | `"connected"` | `"disconnected"` | `"closed"`
 
 ### Browser Usage
 
@@ -90,7 +130,7 @@ The client auto-detects the platform. In browsers, use the esbuild bundle:
 
 ```html
 <script type="module">
-  import { Producer, Consumer } from './dist/client.browser.js'
+  import { createProducer, createConsumer } from './dist/client.browser.js'
   // same API as Node.js
 </script>
 ```
@@ -99,7 +139,9 @@ The client auto-detects the platform. In browsers, use the esbuild bundle:
 
 ## Internal Modules
 
-### `Store`
+These are **not** exported from the public API (`src/index.ts`). Import from their source files directly if needed for server-side development.
+
+### `Store` — `src/store.ts`
 
 ```typescript
 store.setUser(uid, token)
@@ -116,7 +158,7 @@ store.getSubscribers(uuid): Set<Forwarder>
 store.removeAllSubscribers(uuid)
 ```
 
-### `ConnectionManager`
+### `ConnectionManager` — `src/connection-manager.ts`
 
 ```typescript
 connectionManager.registerConnection(ws, uuid, uid, token): boolean
@@ -125,7 +167,7 @@ connectionManager.handleCredentialChange(uid, newToken)
 connectionManager.cleanup(): void  // called periodically
 ```
 
-### `Auth`
+### `Auth` — `src/auth.ts`
 
 ```typescript
 generateToken(): string           // 64-char hex

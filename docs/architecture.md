@@ -81,17 +81,18 @@ Created per subscription (one Forwarder per Consumer↔Producer pair). Handles:
 
 ### `client.ts` — Client SDK
 
-**Producer class:**
+**Producer (`createProducer()`):**
 - Connects to relay, sends `register_transfer`
 - `send(data)` — broadcast to all subscribers
 - `sendTo(cuuid, data)` — target specific consumer
+- `channel(cuuid)` — per-consumer channel
 - Auto-reconnect on disconnect
 - Deterministic UUID: `sha256(id + 5-min-window)`
 
-**Consumer class:**
+**Consumer (`createConsumer()`):**
 - Connects to relay
-- `listConnections(uid, token)` — discover producers
-- `subscribe(uuid, uid, token)` — subscribe to a producer
+- `listConnections()` — discover producers
+- `subscribe(uuid)` — subscribe to a producer
 - `send(data)` — send to subscribed producer
 - Auto-resubscribe on credential change (10004)
 
