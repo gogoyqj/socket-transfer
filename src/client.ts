@@ -201,7 +201,7 @@ export function createProducer(options: ProducerOptions): Producer {
     });
 
     ws.on("error", (err: unknown) => {
-      if (!closed) emitter.emit("error", err instanceof Error ? err : new Error(String(err)));
+      if (!closed) emitter.emit("error", err);
     });
   }
 
@@ -452,7 +452,7 @@ export function createConsumer(options: ConsumerOptions): Consumer {
     });
 
     ws.on("error", (err: unknown) => {
-      if (!closed) emitter.emit("error", err instanceof Error ? err : new Error(String(err)));
+      if (!closed) emitter.emit("error", err);
     });
   }
 

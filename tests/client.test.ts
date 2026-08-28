@@ -294,3 +294,38 @@ describe("Consumer SDK", () => {
     expect(() => consumer.send("test")).toThrow("Not subscribed");
   });
 });
+
+// ===== Error Event Forwarding Tests =====
+
+describe("Error event forwarding", () => {
+  it("producer forwards ws error as-is", async () => {
+    const producer = createProducer({
+      url: "ws://localhost:1", // port 1 → connection refused
+      uid: "13800138000", token: "a".repeat(64),
+      name: "err-test", reconnect: false,
+    });
+
+    const err = await new Promise<unknown>(resolve => {
+      producer.onError(e => resolve(e));
+    });
+
+    // ws library emits Error instances for connection failures
+    expect(err).toBeInstanceOf(Error);
+    producer.close();
+  });
+
+  it("consumer forwards ws error as-is", async () => {
+    const consumer = createConsumer({
+      url: "ws://localhost:1", // port 1 → connection refused
+      uid: "13800138000", token: "a".repeat(64),
+      reconnect: false,
+    });
+
+    const err = await new Promise<unknown>(resolve => {
+      consumer.onError(e => resolve(e));
+    });
+
+    expect(err).toBeInstanceOf(Error);
+    consumer.close();
+  });
+});
