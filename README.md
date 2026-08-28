@@ -23,10 +23,17 @@ npm install
 npm run build
 
 # Start the server
-npx tsx example/start-server.ts
+npm start -- --port 3000
 ```
 
-The server starts on port 3000 (configurable via `PORT` env var):
+**Options:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--port <number>` | `3000` (or `PORT` env) | Server port |
+| `--root <path>` | cwd | Static file root directory |
+
+The server starts on the configured port:
 
 ```
 Producer:  http://localhost:3000/produce.html
@@ -39,8 +46,18 @@ WebSocket: ws://localhost:3000
 
 ### Server
 
+Use the CLI to start the server:
+
+```bash
+npm start -- --port 3000
+# or
+node dist/cli.js --port 3000
+```
+
+For programmatic usage, import `startTransferServer` directly:
+
 ```typescript
-import { startTransferServer } from "socket-transfer";
+import { startTransferServer } from "./src/server.js";
 
 const server = startTransferServer({ port: 3000 });
 
