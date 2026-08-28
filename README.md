@@ -54,10 +54,10 @@ npm start -- --port 3000
 node dist/cli.js --port 3000
 ```
 
-For programmatic usage, import `startTransferServer` directly:
+For programmatic usage:
 
 ```typescript
-import { startTransferServer } from "./src/server.js";
+import { startTransferServer } from "socket-transfer/server";
 
 const server = startTransferServer({ port: 3000 });
 

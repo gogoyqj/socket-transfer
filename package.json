@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "type": "module",
   "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./server": "./dist/server.js"
+  },
   "bin": {
     "socket-transfer": "dist/cli.js"
   },
