@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { WebSocketServer, WebSocket } from "ws";
-import { createProducer, createConsumer } from "../src/client.js";
+import { createProducer } from "../src/producer.js";
+import { createConsumer } from "../src/consumer.js";
 import { Store } from "../src/store.js";
 import { MessageHandler } from "../src/message-handler.js";
 import { ConnectionManager } from "../src/connection-manager.js";

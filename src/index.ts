@@ -1,14 +1,18 @@
 export { type Connection } from "./store.js";
 export {
   createProducer,
-  createConsumer,
+  generateWindowedUuid,
   type Producer,
   type ProducerOptions,
   type ProducerState,
+  type ProducerChannel,
+} from "./producer.js";
+export {
+  createConsumer,
   type Consumer,
   type ConsumerOptions,
   type ConsumerState,
-} from "./client.js";
+} from "./consumer.js";
 export {
   TransferErrorCode,
   MAX_MESSAGE_SIZE,

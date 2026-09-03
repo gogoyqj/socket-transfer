@@ -5,7 +5,9 @@
   "main": "dist/index.js",
   "exports": {
     ".": "./dist/index.js",
-    "./server": "./dist/server.js"
+    "./server": "./dist/server.js",
+    "./producer": "./dist/producer.js",
+    "./consumer": "./dist/consumer.js"
   },
   "bin": {
     "socket-transfer": "dist/cli.js"
@@ -13,7 +15,9 @@
   "scripts": {
     "start": "node dist/cli.js",
     "build": "tsc && npm run build:browser",
-    "build:browser": "esbuild src/client.ts --bundle --format=esm --outfile=dist/client.browser.js --platform=browser",
+    "build:browser": "npm run build:browser:producer && npm run build:browser:consumer",
+    "build:browser:producer": "esbuild src/producer.ts --bundle --format=esm --outfile=dist/producer.browser.js --platform=browser",
+    "build:browser:consumer": "esbuild src/consumer.ts --bundle --format=esm --outfile=dist/consumer.browser.js --platform=browser",
     "test": "vitest run",
     "test:watch": "vitest"
   },
