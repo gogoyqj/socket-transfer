@@ -7,16 +7,11 @@ import type {
 
 // ===== UUID Generation =====
 
-const UUID_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
-
 /**
- * Generate a deterministic UUID from an ID string, rotating every 5 minutes.
- * hash(id + timeWindow) → same ID + same 5-min window → same UUID.
- * Survives process restarts as long as `id` doesn't change.
+ * Generate a deterministic UUID from an ID string
  */
 export function generateWindowedUuid(id: string): string {
-  const window = Math.floor(Date.now() / UUID_WINDOW_MS) * UUID_WINDOW_MS;
-  const input = `${id}:${window}`;
+  const input = `${id}`;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { createHash } = require("node:crypto");
