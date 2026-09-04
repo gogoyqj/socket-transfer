@@ -208,7 +208,7 @@ describe("Consumer SDK", () => {
     // Producer → Consumer
     producer.send({ text: "hello from producer" });
     const receivedByConsumer = await consumerReceivedP;
-    expect(receivedByConsumer).toEqual({ text: "hello from producer" });
+    expect(receivedByConsumer).toEqual({ text: "hello from producer", fuuid: producer.uuid });
 
     producer.close();
     consumer.close();

@@ -29,12 +29,12 @@
     <button onclick="doRegenerate()" title="生成新的 uid + token">🔄 重新生成</button>
   </div>
   <div style="margin-top: 8px;">
-    <div class="label">UID</div>
-    <div class="value" id="cred-uid"></div>
+    <label class="label" for="cred-uid">UID</label>
+    <input type="text" label="UID" class="value" id="cred-uid" />
   </div>
   <div style="margin-top: 8px;">
-    <div class="label">Token</div>
-    <div class="value" id="cred-token"></div>
+    <label class="label" for="cred-token">Token</label>
+    <input type="text" label="Token" class="value" id="cred-token" />
   </div>
   <div style="margin-top: 8px; font-size: 12px; color: #5f6368;">
     将以上凭证发送给消费端，用于订阅连接。
@@ -43,6 +43,7 @@
 
 <div>
   <label>Name: <input id="name" value="agent-1" style="width: 150px;" /></label>
+  <label>ID: <input id="id" value="agent-1" style="width: 150px;" /></label>
   <label style="margin-left: 12px;">Server: <input id="server" value="ws://localhost:3000" style="width: 220px;" /></label>
 </div>
 <div style="margin-top: 12px;">
@@ -61,6 +62,8 @@
 
 <script type="module">
   import { createProducer } from '../dist/producer.browser.js';
+
+  document.getElementById('server').value = 'ws://' + location.href.split('//')[1].split('/')[0];
 
   let producer = null;
   let uid = '';
@@ -82,8 +85,8 @@
   }
 
   function showCredentials() {
-    document.getElementById('cred-uid').textContent = uid;
-    document.getElementById('cred-token').textContent = token;
+    document.getElementById('cred-uid').value = uid;
+    document.getElementById('cred-token').value = token;
   }
 
   function initCredentials() {
@@ -96,14 +99,15 @@
 
   window.doConnect = function () {
     if (producer) producer.close();
-    uid = document.getElementById('cred-uid').textContent;
-    token = document.getElementById('cred-token').textContent;
+    uid = document.getElementById('cred-uid').value;
+    token = document.getElementById('cred-token').value;
 
     const url = document.getElementById('server').value;
     const name = document.getElementById('name').value || 'producer';
+    const id = document.getElementById('id').value || 'agent-1';
 
     log('⏳ Connecting...');
-    producer = createProducer({ url, uid, token, name });
+    producer = createProducer({ url, uid, token, name, id });
 
     producer.onStateChange(state => {
       log('State: ' + state);

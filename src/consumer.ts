@@ -159,6 +159,17 @@ export function createConsumer(options: ConsumerOptions): Consumer {
     }
   }
 
+  function wrapProducerMessage(message: unknown): unknown {
+    if (!currentPuuid) return message;
+    if (message && typeof message === "object" && !Array.isArray(message)) {
+      const obj = message as Record<string, unknown>;
+      if (!Object.prototype.hasOwnProperty.call(obj, "fuuid")) {
+        return { ...obj, fuuid: currentPuuid };
+      }
+    }
+    return message;
+  }
+
   function connect() {
     if (closed) return;
     setState("connecting");
@@ -205,7 +216,7 @@ export function createConsumer(options: ConsumerOptions): Consumer {
             break;
 
           default:
-            emitter.emit("message", msg);
+            emitter.emit("message", wrapProducerMessage(msg));
             break;
         }
       } catch {
